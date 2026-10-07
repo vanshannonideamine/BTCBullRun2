@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>BTC Bull Run</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Fredoka+One&display=swap" rel="stylesheet">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        overflow: hidden;
+        touch-action: none;
+        background: #000;
+        font-family: 'Fredoka One', cursive;
+    }
+    canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+
+    .scanlines {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 100;
+        background: repeating-linear-gradient(0deg, rgba(0,0,0,0.15) 0px, transparent 1px, transparent 2px);
+        background-size: 100% 3px;
+    }
+    .vignette {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 101;
+        background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.5) 100%);
+    }
+
+    .ui-layer {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 50;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 16px;
+    }
+    .interactive { pointer-events: auto; }
+
+    .glass {
+        background: rgba(0, 0, 0, 0.7);
+        border: 1px solid rgba(255, 215, 0, 0.2);
+        border-radius: 12px;
+        backdrop-filter: blur(6px);
+    }
+
+    .retro { font-family: 'Press Start 2P', cursive; }
+
+    @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
+    .float { animation: float 3s ease-in-out infinite; }
+
+    @keyframes popIn {
+        0% { transform: scale(0) rotate(-6deg); opacity: 0; }
+        80% { transform: scale(1.04) rotate(1deg); opacity: 1; }
+        100% { transform: scale(1) rotate(0); opacity: 1; }
+    }
+    .pop { animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+    @keyframes pulseGlow {
+        0%, 100% { box-shadow: 0 0 12px rgba(255,215,0,0.15); }
+        50% { box-shadow: 0 0 28px rgba(255,215,0,0.4); }
+    }
+    .glow { animation: pulseGlow 2.5s ease-in-out infinite; }
+
+    .hidden { display: none !important; }
+
+    .bubble {
+        position: relative;
+        background: #fff;
+        border-radius: 18px;
+        padding: 18px;
+        max-width: 360px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+    .bubble::after {
+        content: '';
+        position: absolute;
+        bottom: -12px;
+        left: 36px;
+        border: 12px solid transparent;
+        border-top-color: #fff;
+    }
+
+    .diff-btn {
+        transition: all 0.15s;
+        cursor: pointer;
+        image-rendering: pixelated;
+        border-radius: 4px;
+    }
+    .diff-btn:hover {
+        transform: translateY(-2px);
+        filter: brightness(1.2);
+    }
+    .diff-btn.active {
+        box-shadow: 0 0 0 3px #FFD700, 0 0 20px rgba(255,215,0,0.5);
+        transform: scale(1.05);
+    }
+    .diff-btn:active {
+        transform: translateY(1px);
+    }
+
+    #startBtn {
+        transition: all 0.1s;
+    }
+    #startBtn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 0 #5D2E0C, 0 10px 30px rgba(255,215,0,0.6) !important;
+    }
+    #startBtn:active {
+        transform: translateY(4px);
+        box-shadow: 0 2px 0 #5D2E0C, 0 4px 10px rgba(255,215,0,0.4) !important;
+    }
+
+    .lb-scroll::-webkit-scrollbar { width: 5px; }
+    .lb-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+    .lb-scroll::-webkit-scrollbar-thumb { background: rgba(255,215,0,0.25); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="scanlines"></div>
+<div class="vignette"></div>
+
+<canvas id="bgCanvas" style="position:fixed; top:0; left:0; z-index:0;"></canvas>
+<canvas id="gameCanvas" style="position:fixed; top:0; left:0; z-index:10;"></canvas>
+
+<div class="ui-layer">
+    <div class="flex justify-between items-start w-full" style="display:flex;justify-content:space-between;align-items:flex-start;width:100%;">
+        <div class="glass px-4 py-2 glow flex items-center gap-3" style="display:flex;align-items:center;gap:12px;padding:8px 16px;">
+            <span class="text-xl" style="font-size:1.25rem;">₿</span>
+            <div>
+                <div class="text-gray-500 text-[9px] uppercase tracking-widest retro" style="color:#6b7280;font-size:9px;text-transform:uppercase;letter-spacing:0.1em;">Sats</div>
+                <div class="text-2xl text-yellow-400" id="scoreDisplay" style="font-size:1.5rem;color:#facc15;">0</div>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <div class="glass px-3 py-2 text-center" style="padding:8px 12px;text-align:center;">
+                <div class="text-gray-500 text-[8px] uppercase retro" style="color:#6b7280;font-size:8px;text-transform:uppercase;">Year</div>
+                <div class="text-lg text-cyan-400" id="yearDisplay" style="font-size:1.125rem;color:#22d3ee;">2025</div>
+            </div>
+            <div class="glass px-3 py-2 text-center" style="padding:8px 12px;text-align:center;">
+                <div class="text-gray-500 text-[8px] uppercase retro" style="color:#6b7280;font-size:8px;text-transform:uppercase;">Lvl</div>
+                <div class="text-lg text-green-400" id="levelDisplay" style="font-size:1.125rem;color:#4ade80;">1</div>
+            </div>
+            <div class="glass px-3 py-2 flex items-center gap-1" style="padding:8px 12px;display:flex;align-items:center;gap:4px;">
+                <span class="text-red-500 text-sm" style="color:#ef4444;font-size:0.875rem;">❤</span>
+                <span class="text-white font-bold text-sm" id="livesDisplay" style="color:#fff;font-weight:bold;font-size:0.875rem;">3</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="notifArea" style="position:absolute;top:25%;left:50%;transform:translateX(-50%);pointer-events:none;"></div>
+
+    <!-- START SCREEN — RETRO ARCADE CABINET -->
+    <div id="startScreen" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:50;pointer-events:auto;background:radial-gradient(ellipse at center, #1a0f00 0%, #000 70%);">
+        <div class="relative max-w-lg w-full mx-4 pop"
+             style="position:relative;max-width:32rem;width:100%;margin:0 1rem;background:#111;border:4px solid #FFD700;border-radius:8px;box-shadow:0 0 0 4px #000, 0 0 40px rgba(255,215,0,0.3), inset 0 0 60px rgba(255,215,0,0.05);">
+
+            <div style="background:linear-gradient(180deg,#FFD700 0%,#B45309 100%);border-bottom:4px solid #000;padding:10px;text-align:center;">
+                <div class="retro" style="color:#000;font-size:11px;letter-spacing:2px;text-shadow:1px 1px 0 rgba(255,255,255,0.3);">★ INSERT COIN ★</div>
+            </div>
+
+            <div style="background:#0a0a0a;padding:24px 20px;position:relative;overflow:hidden;">
+                <div style="position:absolute;inset:0;pointer-events:none;z-index:5;background:repeating-linear-gradient(0deg, rgba(0,0,0,0.35) 0px, transparent 2px, transparent 4px);"></div>
+
+                <div class="flex justify-center mb-4 float" style="display:flex;justify-content:center;margin-bottom:1rem;position:relative;z-index:2;">
+                    <svg width="140" height="140" viewBox="0 0 28 28" shape-rendering="crispEdges" style="filter:drop-shadow(0 0 12px rgba(247,147,26,0.8));">
+                        <rect x="8" y="12" width="12" height="10" fill="#F7931A"/>
+                        <rect x="8" y="19" width="12" height="3" fill="#E8820C"/>
+                        <rect x="9" y="5" width="10" height="8" fill="#F7931A"/>
+                        <rect x="11" y="10" width="6" height="3" fill="#FBBF24"/>
+                        <rect x="13" y="11" width="1" height="1" fill="#5D2E0C"/>
+                        <rect x="14" y="11" width="1" height="1" fill="#5D2E0C"/>
+                        <rect x="8" y="3" width="2" height="3" fill="#FEF3C7"/>
+                        <rect x="18" y="3" width="2" height="3" fill="#FEF3C7"/>
+                        <rect x="7" y="7" width="2" height="3" fill="#D97706"/>
+                        <rect x="19" y="7" width="2" height="3" fill="#D97706"/>
+                        <rect x="10" y="7" width="2" height="2" fill="#000"/>
+                        <rect x="16" y="7" width="2" height="2" fill="#000"/>
+                        <rect x="11" y="7" width="1" height="1" fill="#FFF"/>
+                        <rect x="17" y="7" width="1" height="1" fill="#FFF"/>
+                        <rect x="8" y="22" width="3" height="4" fill="#B45309"/>
+                        <rect x="17" y="22" width="3" height="4" fill="#B45309"/>
+                        <rect x="5" y="14" width="3" height="5" fill="#D97706"/>
+                        <rect x="20" y="14" width="3" height="5" fill="#D97706"/>
+                        <rect x="13" y="15" width="2" height="4" fill="#5D2E0C"/>
+                        <rect x="12" y="15" width="4" height="1" fill="#5D2E0C"/>
+                        <rect x="12" y="18" width="4" height="1" fill="#5D2E0C"/>
+                        <rect x="10" y="7" width="2" height="2" fill="#FF3333" opacity="0.9"/>
+                        <rect x="16" y="7" width="2" height="2" fill="#FF3333" opacity="0.9"/>
+                        <rect x="10" y="2" width="2" height="4" fill="#FF3333" opacity="0.25"/>
+                        <rect x="16" y="2" width="2" height="4" fill="#FF3333" opacity="0.25"/>
+                    </svg>
+                </div>
+
+                <h1 class="retro text-center mb-1" style="text-align:center;font-size:22px;color:#FFD700;text-shadow:2px 2px 0 #B45309, 4px 4px 0 #000;letter-spacing:1px;position:relative;z-index:2;">BTC BULL RUN</h1>
+                <p class="retro text-center mb-5" style="text-align:center;font-size:7px;color:#FFA500;letter-spacing:2px;position:relative;z-index:2;margin-bottom:1.25rem;">CATCH SATS · DODGE BEARS · SURVIVE TIME</p>
+
+                <div style="position:relative;z-index:2;">
+                    <p class="retro text-center mb-2" style="text-align:center;font-size:8px;color:#888;letter-spacing:2px;">SELECT DIFFICULTY</p>
+                    <div class="flex gap-2 justify-center mb-5" style="display:flex;gap:8px;justify-content:center;margin-bottom:1.25rem;">
+                        <button class="diff-btn active" data-diff="easy" onclick="setDiff('easy')" style="flex:1;background:#0a2a0a;border:3px solid #22c55e;border-radius:4px;padding:10px 4px;cursor:pointer;">
+                            <div style="font-size:18px;">🌱</div>
+                            <div class="retro" style="font-size:8px;color:#22c55e;margin-top:4px;">EASY</div>
+                            <div class="retro" style="font-size:6px;color:#666;margin-top:2px;">3 LIVES</div>
+                        </button>
+                        <button class="diff-btn" data-diff="normal" onclick="setDiff('normal')" style="flex:1;background:#2a2a0a;border:3px solid #eab308;border-radius:4px;padding:10px 4px;cursor:pointer;">
+                            <div style="font-size:18px;">⚡</div>
+                            <div class="retro" style="font-size:8px;color:#eab308;margin-top:4px;">NORMAL</div>
+                            <div class="retro" style="font-size:6px;color:#666;margin-top:2px;">2 LIVES</div>
+                        </button>
+                        <button class="diff-btn" data-diff="hard" onclick="setDiff('hard')" style="flex:1;background:#2a0a0a;border:3px solid #ef4444;border-radius:4px;padding:10px 4px;cursor:pointer;">
+                            <div style="font-size:18px;">🔥</div>
+                            <div class="retro" style="font-size:8px;color:#ef4444;margin-top:4px;">HARD</div>
+                            <div class="retro" style="font-size:6px;color:#666;margin-top:2px;">1 LIFE</div>
+                        </button>
+                    </div>
+                </div>
+
+                <button id="startBtn" class="retro w-full" style="position:relative;z-index:2;width:100%;background:linear-gradient(180deg, #FFD700 0%, #F7931A 50%, #B45309 100%);color:#000;border:3px solid #000;border-radius:4px;padding:16px;font-size:11px;letter-spacing:2px;cursor:pointer;box-shadow:0 6px 0 #5D2E0C, 0 8px 20px rgba(255,215,0,0.4);">▶ START RUN ◀</button>
+                <div class="text-center mt-3 retro" style="text-align:center;margin-top:0.75rem;font-size:6px;color:#666;letter-spacing:1px;position:relative;z-index:2;">🖱️ MOVE · ⌨️ ARROWS · ␣ DASH</div>
+            </div>
+
+            <div style="background:#000;border-top:4px solid #FFD700;padding:8px;text-align:center;">
+                <div class="retro" style="font-size:6px;color:#FFD700;letter-spacing:1px;">© 2025 BULL RUN ARCADE · 1 PLAYER</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TUTORIAL -->
+    <div id="tutorialScreen" class="hidden" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);z-index:40;pointer-events:auto;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:1rem;padding:1rem;max-width:28rem;width:100%;">
+            <div class="text-7xl float" style="font-size:4.5rem;filter:drop-shadow(0 10px 20px rgba(0,0,0,0.5));">🐻</div>
+            <div class="bubble text-left" style="text-align:left;">
+                <h3 style="font-weight:bold;color:#1f2937;font-size:1.125rem;margin-bottom:0.5rem;">Listen up, Bull.</h3>
+                <p style="color:#4b5563;font-size:0.875rem;margin-bottom:0.75rem;line-height:1.6;">I'm Bear Market. Here's how this works:</p>
+                <ul style="font-size:0.875rem;color:#374151;list-style:none;">
+                    <li style="display:flex;gap:0.5rem;margin-bottom:0.5rem;"><span style="color:#eab308;">₿</span> <span>Catch falling Bitcoins</span></li>
+                    <li style="display:flex;gap:0.5rem;margin-bottom:0.5rem;"><span style="color:#ef4444;">🐻</span> <span><strong>DODGE the Bears</strong> — they warp in from the future</span></li>
+                    <li style="display:flex;gap:0.5rem;margin-bottom:0.5rem;"><span style="color:#22c55e;">🚀</span> <span>Combos multiply score</span></li>
+                    <li style="display:flex;gap:0.5rem;margin-bottom:0.5rem;"><span style="color:#a855f7;">␣</span> <span><strong>SPACE to DASH</strong> — emergency escape</span></li>
+                    <li style="display:flex;gap:0.5rem;margin-bottom:0.5rem;"><span style="color:#06b6d4;">🕐</span> <span>Each level = new year, new world</span></li>
+                </ul>
+                <p style="font-size:0.75rem;color:#6b7280;font-style:italic;margin-top:0.75rem;">"The bears are coming through time itself. Good luck."</p>
+            </div>
+            <button id="tutBtn" style="background:#1f2937;color:#fff;font-weight:bold;padding:0.75rem 2rem;border-radius:0.75rem;border:none;cursor:pointer;font-size:1rem;">Let's run 🐂</button>
+        </div>
+    </div>
+
+    <!-- GAME OVER -->
+    <div id="gameOverScreen" class="hidden" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);z-index:50;pointer-events:auto;">
+        <div class="glass p-6 text-center max-w-md w-full mx-4 pop" style="padding:1.5rem;text-align:center;max-width:28rem;width:100%;margin:0 1rem;border-color:rgba(239,68,68,0.2);">
+            <div style="font-size:3rem;margin-bottom:0.5rem;">📉</div>
+            <h2 style="font-size:1.875rem;color:#f87171;margin-bottom:0.25rem;">MARKET CRASH!</h2>
+            <p class="retro" style="color:#6b7280;font-size:9px;margin-bottom:1rem;">THE BEARS WON</p>
+
+            <div style="background:rgba(0,0,0,0.3);border-radius:0.75rem;padding:1rem;margin-bottom:1rem;border:1px solid rgba(234,179,8,0.15);">
+                <div class="retro" style="color:#6b7280;font-size:9px;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.25rem;">Final Sats</div>
+                <div style="font-size:2.25rem;color:#facc15;" id="finalScore">0</div>
+                <div style="font-size:0.75rem;color:#6b7280;margin-top:0.25rem;" id="yearReached">Year: 2025</div>
+                <div style="font-size:0.75rem;color:#6b7280;" id="comboDisplay">Best Combo: 0x</div>
+            </div>
+
+            <div style="margin-bottom:1rem;">
+                <input type="text" id="playerName" placeholder="Your name" maxlength="12" value="BullRunner"
+                    class="retro"
+                    style="width:100%;background:rgba(0,0,0,0.4);border:1px solid #374151;border-radius:0.5rem;padding:0.5rem 1rem;color:#fff;text-align:center;font-size:10px;outline:none;">
+            </div>
+
+            <div style="background:rgba(0,0,0,0.2);border-radius:0.75rem;padding:0.75rem;margin-bottom:1rem;max-height:8rem;overflow-y:auto;text-align:left;" class="lb-scroll">
+                <div class="retro" style="color:#6b7280;font-size:9px;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem;text-align:center;">🏆 Hall of Fame</div>
+                <div id="lbList" style="font-size:0.75rem;"></div>
+            </div>
+
+            <div style="display:flex;gap:0.75rem;">
+                <button id="shareBtn" style="flex:1;background:#1d4ed8;color:#fff;font-weight:bold;padding:0.75rem;border-radius:0.75rem;border:none;cursor:pointer;font-size:0.875rem;">Share 📤</button>
+                <button id="restartBtn" class="retro" style="flex:1;background:linear-gradient(90deg,#16a34a,#15803d);color:#fff;font-weight:bold;padding:0.75rem;border-radius:0.75rem;border:none;cursor:pointer;font-size:10px;">RUN AGAIN ▶</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================
+// BTC BULL RUN — TIME TRAVEL + SOUND + BEARS
+// ============================================
+
+const DIFFICULTY = {
+    easy:   { lives: 3, spawnRate: 75, bearRate: 180, speedMin: 1.0, speedMax: 2.5, hitBonus: 14 },
+    normal: { lives: 2, spawnRate: 58, bearRate: 140, speedMin: 1.8, speedMax: 3.6, hitBonus: 8 },
+    hard:   { lives: 1, spawnRate: 42, bearRate: 100, speedMin: 2.8, speedMax: 5.0, hitBonus: 2 }
+};
+
+const LEVELS = [
+    { year: 2025, name: "The Desk", bg: "#0c0c14", grid: "rgba(0,200,100,0.05)", gridSize: 50, chartUp: "#00CC66", chartDown: "#CC3333", glowUp: "rgba(0,200,100,0.15)", glowDown: "rgba(200,50,50,0.15)", accent: "#00CC66", coinRate: 1.0, starCount: 0, hasBuildings: false, hasRings: false, hasNebula: false, hasGridFloor: false, scanlineIntensity: 0.12, description: "Just another Tuesday at the trading desk." },
+    { year: 2026, name: "Holo Terminal", bg: "#080a18", grid: "rgba(0,220,255,0.06)", gridSize: 40, chartUp: "#00DDFF", chartDown: "#FF3366", glowUp: "rgba(0,220,255,0.2)", glowDown: "rgba(255,50,100,0.2)", accent: "#00DDFF", coinRate: 1.08, starCount: 30, hasBuildings: false, hasRings: true, hasNebula: false, hasGridFloor: true, scanlineIntensity: 0.1, description: "Holographic charts. Still losing money." },
+    { year: 2027, name: "Neo Tokyo", bg: "#0a0014", grid: "rgba(255,0,200,0.05)", gridSize: 35, chartUp: "#FF00CC", chartDown: "#00FF99", glowUp: "rgba(255,0,200,0.25)", glowDown: "rgba(0,255,150,0.25)", accent: "#FF00CC", coinRate: 1.15, starCount: 60, hasBuildings: true, hasRings: true, hasNebula: false, hasGridFloor: true, scanlineIntensity: 0.08, description: "Neon rain. Cyber-bulls. Same volatility." },
+    { year: 2028, name: "Orbit Station", bg: "#000510", grid: "rgba(100,200,255,0.04)", gridSize: 30, chartUp: "#66CCFF", chartDown: "#FF6644", glowUp: "rgba(100,200,255,0.2)", glowDown: "rgba(255,100,50,0.2)", accent: "#66CCFF", coinRate: 1.22, starCount: 120, hasBuildings: false, hasRings: false, hasNebula: true, hasGridFloor: false, scanlineIntensity: 0.06, description: "Trading from orbit. Gravity is optional." },
+    { year: 2029, name: "Mars Base", bg: "#140502", grid: "rgba(255,100,50,0.05)", gridSize: 45, chartUp: "#FF8844", chartDown: "#AA2222", glowUp: "rgba(255,120,50,0.2)", glowDown: "rgba(170,30,30,0.2)", accent: "#FF8844", coinRate: 1.28, starCount: 80, hasBuildings: true, hasRings: false, hasNebula: false, hasGridFloor: true, scanlineIntensity: 0.09, description: "Red planet. Red candles. Some things don't change." },
+    { year: 2030, name: "Binary Stars", bg: "#050008", grid: "rgba(200,100,255,0.04)", gridSize: 25, chartUp: "#CC88FF", chartDown: "#FF5588", glowUp: "rgba(200,100,255,0.25)", glowDown: "rgba(255,80,130,0.25)", accent: "#CC88FF", coinRate: 1.35, starCount: 200, hasBuildings: false, hasRings: true, hasNebula: true, hasGridFloor: false, scanlineIntensity: 0.05, description: "Two suns. Infinite volatility." },
+    { year: 2031, name: "Dyson Shell", bg: "#0a0a00", grid: "rgba(255,220,0,0.05)", gridSize: 20, chartUp: "#FFDD00", chartDown: "#FF4400", glowUp: "rgba(255,220,0,0.3)", glowDown: "rgba(255,60,0,0.3)", accent: "#FFDD00", coinRate: 1.42, starCount: 50, hasBuildings: false, hasRings: true, hasNebula: true, hasGridFloor: true, scanlineIntensity: 0.04, description: "Harvesting a star's energy to mine harder." },
+    { year: 2032, name: "The Rift", bg: "#000000", grid: "rgba(0,255,150,0.03)", gridSize: 15, chartUp: "#00FF99", chartDown: "#FF0099", glowUp: "rgba(0,255,150,0.35)", glowDown: "rgba(255,0,150,0.35)", accent: "#00FF99", coinRate: 1.5, starCount: 300, hasBuildings: false, hasRings: true, hasNebula: true, hasGridFloor: true, scanlineIntensity: 0.03, description: "Reality is optional. Sats are not." },
+    { year: 2033, name: "Singularity", bg: "#000", grid: "rgba(255,255,255,0.02)", gridSize: 10, chartUp: "#FFFFFF", chartDown: "#888888", glowUp: "rgba(255,255,255,0.4)", glowDown: "rgba(150,150,150,0.3)", accent: "#FFFFFF", coinRate: 1.6, starCount: 500, hasBuildings: false, hasRings: true, hasNebula: true, hasGridFloor: true, scanlineIntensity: 0.02, description: "You are the chart now." },
+    { year: 2034, name: "Heat Death", bg: "#020205", grid: "rgba(255,140,0,0.04)", gridSize: 60, chartUp: "#FF8800", chartDown: "#FF2200", glowUp: "rgba(255,140,0,0.4)", glowDown: "rgba(255,30,0,0.3)", accent: "#FF8800", coinRate: 1.75, starCount: 20, hasBuildings: false, hasRings: false, hasNebula: false, hasGridFloor: false, scanlineIntensity: 0.15, description: "At the end of time, there is only HODL." }
+];
+
+// ============================================
+// AUDIO ENGINE — Procedural, zero files
+// ============================================
+const AudioEngine = {
+    ctx: null,
+    initialized: false,
+    init() {
+        if(this.initialized) return;
+        try {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            this.initialized = true;
+        } catch(e) { console.warn('Audio unavailable'); }
+    },
+    coin() {
+        if(!this.initialized) return;
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = 'square';
+        o.frequency.setValueAtTime(880, this.ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(1760, this.ctx.currentTime + 0.08);
+        g.gain.setValueAtTime(0.15, this.ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.12);
+        o.connect(g); g.connect(this.ctx.destination);
+        o.start(); o.stop(this.ctx.currentTime + 0.12);
+    },
+    goldCoin() {
+        if(!this.initialized) return;
+        [523, 659, 784, 1047].forEach((freq, i) => {
+            const o = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            o.type = 'square';
+            o.frequency.setValueAtTime(freq, this.ctx.currentTime + i*0.04);
+            g.gain.setValueAtTime(0.12, this.ctx.currentTime + i*0.04);
+            g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + i*0.04 + 0.1);
+            o.connect(g); g.connect(this.ctx.destination);
+            o.start(this.ctx.currentTime + i*0.04);
+            o.stop(this.ctx.currentTime + i*0.04 + 0.1);
+        });
+    },
+    rainbowCoin() {
+        if(!this.initialized) return;
+        [440, 554, 659, 880, 1109].forEach((freq, i) => {
+            const o = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            o.type = 'sawtooth';
+            o.frequency.setValueAtTime(freq, this.ctx.currentTime + i*0.03);
+            g.gain.setValueAtTime(0.1, this.ctx.currentTime + i*0.03);
+            g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + i*0.03 + 0.15);
+            o.connect(g); g.connect(this.ctx.destination);
+            o.start(this.ctx.currentTime + i*0.03);
+            o.stop(this.ctx.currentTime + i*0.03 + 0.15);
+        });
+    },
+    bearHit() {
+        if(!this.initialized) return;
+        const bufferSize = this.ctx.sampleRate * 0.3;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for(let i=0; i<bufferSize; i++) data[i] = (Math.random()*2-1) * Math.pow(1-i/bufferSize, 2);
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const g = this.ctx.createGain();
+        const f = this.ctx.createBiquadFilter();
+        f.type = 'lowpass';
+        f.frequency.value = 400;
+        g.gain.setValueAtTime(0.25, this.ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
+        noise.connect(f); f.connect(g); g.connect(this.ctx.destination);
+        noise.start();
+    },
+    miss() {
+        if(!this.initialized) return;
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(400, this.ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.3);
+        g.gain.setValueAtTime(0.2, this.ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
+        o.connect(g); g.connect(this.ctx.destination);
+        o.start(); o.stop(this.ctx.currentTime + 0.3);
+    },
+    laser() {
+        if(!this.initialized) return;
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(2000, this.ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.15);
+        g.gain.setValueAtTime(0.08, this.ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.15);
+        o.connect(g); g.connect(this.ctx.destination);
+        o.start(); o.stop(this.ctx.currentTime + 0.15);
+    },
+    dash() {
+        if(!this.initialized) return;
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = 'square';
+        o.frequency.setValueAtTime(200, this.ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(1200, this.ctx.currentTime + 0.1);
+        g.gain.setValueAtTime(0.1, this.ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.1);
+        o.connect(g); g.connect(this.ctx.destination);
+        o.start(); o.stop(this.ctx.currentTime + 0.1);
+    },
+    levelUp() {
+        if(!this.initialized) return;
+        [523, 659, 784, 1047, 1319].forEach((freq, i) => {
+            const o = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            o.type = 'square';
+            o.frequency.setValueAtTime(freq, this.ctx.currentTime + i*0.08);
+            g.gain.setValueAtTime(0.12, this.ctx.currentTime + i*0.08);
+            g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + i*0.08 + 0.2);
+            o.connect(g); g.connect(this.ctx.destination);
+            o.start(this.ctx.currentTime + i*0.08);
+            o.stop(this.ctx.currentTime + i*0.08 + 0.2);
+        });
+    },
+    musicPlaying: false,
+    musicInterval: null,
+    startMusic() {
+        if(!this.initialized || this.musicPlaying) return;
+        this.musicPlaying = true;
+        const notes = [220, 261, 329, 392, 440, 392, 329, 261];
+        let noteIndex = 0;
+        this.musicInterval = setInterval(() => {
+            if(state !== 'PLAYING') return;
+            const o = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            o.type = 'square';
+            o.frequency.setValueAtTime(notes[noteIndex], this.ctx.currentTime);
+            g.gain.setValueAtTime(0.03, this.ctx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.15);
+            o.connect(g); g.connect(this.ctx.destination);
+            o.start(); o.stop(this.ctx.currentTime + 0.15);
+            noteIndex = (noteIndex + 1) % notes.length;
+        }, 180);
+    },
+    stopMusic() {
+        this.musicPlaying = false;
+        if(this.musicInterval) { clearInterval(this.musicInterval); this.musicInterval = null; }
+    }
+};
+
+// ============================================
+// CANVAS & STATE
+// ============================================
+const bgC = document.getElementById('bgCanvas');
+const bgX = bgC.getContext('2d');
+const gC = document.getElementById('gameCanvas');
+const gX = gC.getContext('2d');
+
+let state = 'MENU';
+let diff = 'easy';
+let score = 0, level = 1, lives = 3, combo = 0, maxCombo = 0;
+let frames = 0, gameSpeed = 1;
+let chartData = [];
+let mouseX = innerWidth/2, mouseY = innerHeight/2;
+let keys = {};
+let screenShake = 0;
+
+let bull = { x:0, y:0, tx:0, ty:0, r:42, ang:0, wob:0, speed:0.11, dashCooldown: 0, isDashing: false };
+let coins = [], particles = [], floatTexts = [];
+let bears = [];
+let stars = [], buildings = [], nebulaParticles = [];
+
+let leaderboard = [];
+try {
+    leaderboard = JSON.parse(localStorage.getItem('btcBullLB_v3')) || null;
+} catch(e) { leaderboard = null; }
+if(!leaderboard) {
+    leaderboard = [
+        {name:"Satoshi", score:25000, level:10, year:2034, diff:"hard"},
+        {name:"LaserEyes", score:15000, level:7, year:2031, diff:"hard"},
+        {name:"MoonBoy", score:8000, level:5, year:2029, diff:"normal"},
+        {name:"HODLer", score:4000, level:3, year:2027, diff:"easy"},
+        {name:"BearMarket", score:500, level:1, year:2025, diff:"easy"}
+    ];
+}
+
+function init() {
+    resize();
+    addEventListener('resize', resize);
+    addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
+    addEventListener('touchmove', e => { e.preventDefault(); mouseX = e.touches[0].clientX; mouseY = e.touches[0].clientY; }, {passive:false});
+    addEventListener('touchstart', e => { mouseX = e.touches[0].clientX; mouseY = e.touches[0].clientY; }, {passive:false});
+    addEventListener('keydown', e => {
+        keys[e.key] = true;
+        if(e.code === 'Space' && state === 'PLAYING') doDash();
+    });
+    addEventListener('keyup', e => keys[e.key] = false);
+
+    document.getElementById('startBtn').onclick = () => { AudioEngine.init(); showTutorial(); };
+    document.getElementById('tutBtn').onclick = startGame;
+    document.getElementById('restartBtn').onclick = startGame;
+    document.getElementById('shareBtn').onclick = shareScore;
+
+    for(let i=0; i<150; i++) chartData.push(35 + Math.random()*45);
+
+    generateStars();
+    generateBuildings();
+    generateNebula();
+
+    requestAnimationFrame(loop);
+    drawBg();
+}
+
+function generateStars() {
+    stars = [];
+    for(let i=0; i<400; i++) {
+        stars.push({
+            x: Math.random()*innerWidth,
+            y: Math.random()*innerHeight,
+            size: Math.random()*2 + 0.5,
+            twinkle: Math.random()*Math.PI*2,
+            speed: Math.random()*0.3 + 0.1
+        });
+    }
+}
+
+function generateBuildings() {
+    buildings = [];
+    const count = Math.floor(innerWidth / 60);
+    for(let i=0; i<count; i++) {
+        buildings.push({
+            x: i * 60 + Math.random()*20,
+            w: 30 + Math.random()*40,
+            h: 80 + Math.random()*200,
+            windows: Math.random() > 0.3
+        });
+    }
+}
+
+function generateNebula() {
+    nebulaParticles = [];
+    for(let i=0; i<30; i++) {
+        nebulaParticles.push({
+            x: Math.random()*innerWidth,
+            y: Math.random()*innerHeight,
+            r: 50 + Math.random()*150,
+            vx: (Math.random()-0.5)*0.3,
+            vy: (Math.random()-0.5)*0.3,
+            hue: Math.random()*360,
+            alpha: 0.03 + Math.random()*0.04
+        });
+    }
+}
+
+function resize() {
+    bgC.width = gC.width = innerWidth;
+    bgC.height = gC.height = innerHeight;
+    if(state === 'MENU') {
+        bull.x = bull.tx = innerWidth/2;
+        bull.y = bull.ty = innerHeight/2;
+    }
+    generateBuildings();
+}
+
+function setDiff(d) {
+    diff = d;
+    document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+    const btn = document.querySelector(`[data-diff="${d}"]`);
+    if(btn) btn.classList.add('active');
+}
+
+function showTutorial() {
+    state = 'TUTORIAL';
+    document.getElementById('startScreen').classList.add('hidden');
+    document.getElementById('tutorialScreen').classList.remove('hidden');
+}
+
+function startGame() {
+    reset();
+    state = 'PLAYING';
+    document.getElementById('startScreen').classList.add('hidden');
+    document.getElementById('tutorialScreen').classList.add('hidden');
+    document.getElementById('gameOverScreen').classList.add('hidden');
+    bull.y = innerHeight + 120;
+    bull.ty = innerHeight - 160;
+    AudioEngine.startMusic();
+}
+
+function reset() {
+    const cfg = DIFFICULTY[diff];
+    score = 0; level = 1; lives = cfg.lives; combo = 0; maxCombo = 0;
+    coins = []; particles = []; floatTexts = []; bears = [];
+    frames = 0; gameSpeed = 1; screenShake = 0;
+    bull.x = innerWidth/2; bull.y = innerHeight + 120;
+    bull.tx = innerWidth/2; bull.ty = innerHeight - 160;
+    bull.dashCooldown = 0; bull.isDashing = false;
+    updateUI();
+}
+
+function doDash() {
+    if(bull.dashCooldown > 0 || bull.isDashing) return;
+    bull.isDashing = true;
+    bull.dashCooldown = 60;
+    AudioEngine.dash();
+
+    const dashDist = 80;
+    const dx = Math.cos(bull.ang) * dashDist;
+    const dy = Math.sin(bull.ang) * dashDist;
+    bull.x += dx;
+    bull.y += dy;
+
+    for(let i=0; i<10; i++) {
+        particles.push({
+            x: bull.x, y: bull.y,
+            vx: -dx*0.1 + (Math.random()-0.5)*4,
+            vy: -dy*0.1 + (Math.random()-0.5)*4,
+            life: 0.6, color: '#00DDFF', size: 3, grav: 0
+        });
+    }
+
+    setTimeout(() => bull.isDashing = false, 200);
+}
+
+function gameOver() {
+    state = 'GAMEOVER';
+    AudioEngine.stopMusic();
+    const entry = {
+        name: (document.getElementById('playerName').value.trim() || 'Anonymous'),
+        score, level, year: LEVELS[Math.min(level-1, LEVELS.length-1)].year, diff,
+        date: new Date().toLocaleDateString()
+    };
+    leaderboard.push(entry);
+    leaderboard.sort((a,b) => b.score - a.score);
+    leaderboard = leaderboard.slice(0, 20);
+    try { localStorage.setItem('btcBullLB_v3', JSON.stringify(leaderboard)); } catch(e) {}
+
+    const lvl = LEVELS[Math.min(level-1, LEVELS.length-1)];
+    document.getElementById('finalScore').innerText = score.toLocaleString();
+    document.getElementById('yearReached').innerText = `Year: ${lvl.year} — ${lvl.name}`;
+    document.getElementById('comboDisplay').innerText = `Best Combo: ${maxCombo}x`;
+    renderLB();
+    document.getElementById('gameOverScreen').classList.remove('hidden');
+
+    for(let i=0; i<20; i++) chartData[chartData.length-1-i] = 5;
+}
+
+function renderLB() {
+    const list = document.getElementById('lbList');
+    list.innerHTML = leaderboard.slice(0,10).map((e,i) => {
+        const m = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`;
+        const hl = e.score===score ? 'background:rgba(234,179,8,0.1);' : '';
+        return `<div style="display:flex;align-items:center;gap:0.5rem;padding:0.25rem;border-radius:0.25rem;${hl}">
+            <span style="width:1.25rem;text-align:center;font-size:10px;color:${i<3?'#facc15':'#4b5563'};">${m}</span>
+            <span style="flex:1;color:#d1d5db;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;">${e.name}</span>
+            <span style="color:#6b7280;font-size:9px;">${e.year}</span>
+            <span style="color:#facc15;font-size:11px;font-weight:bold;">${e.score.toLocaleString()}</span>
+        </div>`;
+    }).join('');
+}
+
+function shareScore() {
+    const lvl = LEVELS[Math.min(level-1, LEVELS.length-1)];
+    const t = `I survived to ${lvl.year} (${lvl.name}) with ${score.toLocaleString()} sats in BTC Bull Run! 🐂₿ How far can you get?`;
+    if(navigator.share) navigator.share({title:'BTC Bull Run', text:t});
+    else if(navigator.clipboard) { navigator.clipboard.writeText(t); showNotif('Copied!'); }
+}
+
+function showNotif(text) {
+    const d = document.createElement('div');
+    d.style.cssText = 'background:rgba(0,0,0,0.8);color:#fff;padding:0.5rem 1rem;border-radius:0.5rem;font-size:0.75rem;margin-bottom:0.5rem;';
+    d.innerText = text;
+    document.getElementById('notifArea').appendChild(d);
+    setTimeout(() => d.remove(), 2000);
+}
+
+function updateUI() {
+    const lvl = LEVELS[Math.min(level-1, LEVELS.length-1)];
+    document.getElementById('scoreDisplay').innerText = score.toLocaleString();
+    document.getElementById('levelDisplay').innerText = level;
+    document.getElementById('yearDisplay').innerText = lvl.year;
+    document.getElementById('livesDisplay').innerText = lives;
+}
+
+// ============================================
+// ENTITY SPAWNING
+// ============================================
+function spawnCoin() {
+    const cfg = DIFFICULTY[diff];
+    const lvl = LEVELS[Math.min(level-1, LEVELS.length-1)];
+    const margin = 70;
+    const x = Math.random()*(innerWidth-margin*2)+margin;
+    const isGold = Math.random() > 0.8;
+    const isRainbow = Math.random() > 0.96;
+
+    coins.push({
+        x, y: -45,
+        r: isRainbow?26:isGold?22:19,
+        speed: (Math.random()*(cfg.speedMax-cfg.speedMin)+cfg.speedMin)*gameSpeed*lvl.coinRate,
+        rot: Math.random()*Math.PI*2,
+        rotSpd: (Math.random()-0.5)*0.05,
+        type: isRainbow?'RAINBOW':isGold?'GOLD':'NORMAL',
+        pulse: 0,
+        trail: []
+    });
+}
+
+function spawnBear() {
+    const side = Math.random() > 0.5 ? 'left' : 'right';
+    const x = side === 'left' ? -40 : innerWidth + 40;
+    const y = Math.random() * (innerHeight * 0.6) + 50;
+    const targetX = side === 'left' ? innerWidth + 100 : -100;
+
+    bears.push({
+        x, y,
+        tx: targetX, ty: y + (Math.random()-0.5)*100,
+        speed: 1.5 + Math.random() * 2 + gameSpeed * 0.5,
+        r: 28,
+        wob: Math.random() * Math.PI * 2,
+        portalPhase: 0,
+        side
+    });
+}
+
+function explode(x,y,color,count=12) {
+    for(let i=0;i<count;i++) particles.push({
+        x,y, vx:(Math.random()-0.5)*10, vy:(Math.random()-0.5)*10,
+        life:1, color, size: Math.random()*5+2, grav:0.12
+    });
+}
+
+function floatText(x,y,text,color='#FFD700') {
+    floatTexts.push({x,y,text,color,life:1,vy:-2.2,scale:1});
+}
+
+// ============================================
+// UPDATE LOOP
+// ============================================
+function update() {
+    if(state !== 'PLAYING') {
+        if(state === 'MENU') { bull.wob += 0.03; bull.y = innerHeight/2+Math.sin(bull.wob)*12; }
+        return;
+    }
+
+    frames++;
+    const cfg = DIFFICULTY[diff];
+    const lvl = LEVELS[Math.min(level-1, LEVELS.length-1)];
+
+    if(bull.dashCooldown > 0) bull.dashCooldown--;
+
+    const newLevel = Math.min(Math.floor(score/600)+1, LEVELS.length);
+    if(newLevel !== level) {
+        level = newLevel;
+        const newLvl = LEVELS[Math.min(level-1, LEVELS.length-1)];
+        showNotif(`${newLvl.year}: ${newLvl.name}`);
+        AudioEngine.levelUp();
+        gameSpeed += 0.06;
+        updateUI();
+    }
+
+    if(frames%500===0) gameSpeed += 0.025;
+
+    if(screenShake > 0) screenShake *= 0.9;
+    if(screenShake < 0.5) screenShake = 0;
+
+    bull.tx = mouseX;
+    bull.ty = Math.min(mouseY, innerHeight-130);
+    if(keys['ArrowLeft']||keys['a']) bull.tx -= 14;
+    if(keys['ArrowRight']||keys['d']) bull.tx += 14;
+    if(keys['ArrowUp']||keys['w']) bull.ty -= 14;
+    if(keys['ArrowDown']||keys['s']) bull.ty += 14;
+
+    const moveSpeed = bull.isDashing ? bull.speed * 2.5 : bull.speed;
+    bull.x += (bull.tx-bull.x)*moveSpeed;
+    bull.y += (bull.ty-bull.y)*moveSpeed;
+    bull.x = Math.max(bull.r, Math.min(innerWidth-bull.r, bull.x));
+    bull.y = Math.max(bull.r, Math.min(innerHeight-bull.r, bull.y));
+
+    const dx = bull.tx-bull.x, dy = bull.ty-bull.y;
+    if(Math.abs(dx)>2||Math.abs(dy)>2) {
+        let ta = Math.atan2(dy,dx), d = ta-bull.ang;
+        while(d<-Math.PI) d+=Math.PI*2;
+        while(d>Math.PI) d-=Math.PI*2;
+        bull.ang += d*0.1;
+    }
+    bull.wob += 0.1;
+
+    const spawnMod = Math.max(22, Math.floor(cfg.spawnRate - gameSpeed*4));
+    if(frames%spawnMod===0) spawnCoin();
+
+    const bearMod = Math.max(60, Math.floor(cfg.bearRate - gameSpeed*8));
+    if(frames%bearMod===0 && frames > 180) spawnBear();
+
+    for(let i=coins.length-1;i>=0;i--) {
+        let c = coins[i];
+        c.y += c.speed; c.rot += c.rotSpd; c.pulse += 0.07;
+
+        c.trail.push({x:c.x, y:c.y});
+        if(c.trail.length > 8) c.trail.shift();
+
+        const dist = Math.hypot(bull.x-c.x, bull.y-c.y);
+        if(dist < bull.r + c.r + cfg.hitBonus) {
+            combo++;
+            if(combo>maxCombo) maxCombo=combo;
+            let pts = c.type==='RAINBOW'?100:c.type==='GOLD'?25:10;
+            pts = Math.floor(pts*(1+combo*0.07));
+            score += pts;
+
+            const col = c.type==='RAINBOW'?`hsl(${frames*5%360},100%,60%)`:c.type==='GOLD'?'#FFD700':'#F7931A';
+            explode(c.x,c.y,col,c.type==='RAINBOW'?28:14);
+            floatText(c.x,c.y-28,`+${pts}${combo>1?' '+combo+'x':''}`,col);
+
+            if(c.type==='RAINBOW') AudioEngine.rainbowCoin();
+            else if(c.type==='GOLD') AudioEngine.goldCoin();
+            else AudioEngine.coin();
+
+            screenShake = 2;
+            chartData[chartData.length-1] = Math.min(92, chartData[chartData.length-1]+10);
+
+            coins.splice(i,1);
+            updateUI();
+            continue;
+        }
+
+        if(c.y > innerHeight+40) {
+            combo = 0;
+            lives--;
+            AudioEngine.miss();
+            for(let j=0;j<10;j++) chartData[chartData.length-1-j] = Math.max(5, chartData[chartData.length-1-j]-15);
+            explode(c.x, innerHeight-15, '#EF4444', 18);
+            floatText(c.x, innerHeight-45, 'MISS!', '#EF4444');
+            coins.splice(i,1);
+            updateUI();
+            if(lives<=0) { gameOver(); return; }
+        }
+    }
+
+    for(let i=bears.length-1;i>=0;i--) {
+        let b = bears[i];
+        b.wob += 0.08;
+
+        if(b.portalPhase < 1) b.portalPhase += 0.05;
+
+        const bdx = b.tx - b.x;
+        const bdy = b.ty - b.y;
+        const bdist = Math.hypot(bdx, bdy);
+        if(bdist > 5) {
+            b.x += (bdx/bdist) * b.speed;
+            b.y += (bdy/bdist) * b.speed * 0.3;
+        } else {
+            bears.splice(i,1);
+            continue;
+        }
+
+        const dist = Math.hypot(bull.x-b.x, bull.y-b.y);
+        if(dist < bull.r + b.r + 5 && !bull.isDashing) {
+            lives--;
+            combo = 0;
+            AudioEngine.bearHit();
+            screenShake = 15;
+            explode(b.x, b.y, '#8B5CF6', 25);
+            floatText(b.x, b.y-30, 'BEAR ATTACK!', '#8B5CF6');
+            bears.splice(i,1);
+            updateUI();
+            if(lives<=0) { gameOver(); return; }
+        } else if (dist < bull.r + b.r + 20 && bull.isDashing) {
+            score += 50;
+            AudioEngine.laser();
+            explode(b.x, b.y, '#00DDFF', 20);
+            floatText(b.x, b.y-30, 'DASH KILL! +50', '#00DDFF');
+            bears.splice(i,1);
+            updateUI();
+        }
+
+        if((b.side === 'left' && b.x > innerWidth + 60) || (b.side === 'right' && b.x < -60)) {
+            bears.splice(i,1);
+        }
+    }
+
+    for(let i=particles.length-1;i>=0;i--) {
+        let p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.vy += p.grav; p.life -= 0.022;
+        if(p.life<=0) particles.splice(i,1);
+    }
+
+    for(let i=floatTexts.length-1;i>=0;i--) {
+        let t = floatTexts[i];
+        t.y += t.vy; t.life -= 0.016; t.scale = 1+(1-t.life)*0.25;
+        if(t.life<=0) floatTexts.splice(i,1);
+    }
+
+    if(frames%6===0) {
+        chartData.shift();
+        let last = chartData[chartData.length-1];
+        chartData.push(Math.max(5, Math.min(95, last + (Math.random()-0.42)*16)));
+    }
+}
+
+// ============================================
+// RENDER
+// ============================================
+function draw() {
+    const shakeX = screenShake > 0 ? (Math.random()-0.5)*screenShake : 0;
+    const shakeY = screenShake > 0 ? (Math.random()-0.5)*screenShake : 0;
+
+    gX.save();
+    gX.translate(shakeX, shakeY);
+
+    gX.clearRect(-20,-20,innerWidth+40,innerHeight+40);
+    const lvl = LEVELS[Math.min(level-1, LEVELS.length-1)];
+
+    coins.forEach(c => {
+        if(c.trail.length > 1) {
+            gX.strokeStyle = c.type==='RAINBOW'?`hsla(${frames*3%360},80%,60%,0.3)`:c.type==='GOLD'?'rgba(255,215,0,0.3)':'rgba(247,147,26,0.3)';
+            gX.lineWidth = 2;
+            gX.beginPath();
+            gX.moveTo(c.trail[0].x, c.trail[0].y);
+            for(let i=1;i<c.trail.length;i++) gX.lineTo(c.trail[i].x, c.trail[i].y);
+            gX.stroke();
+        }
+    });
+
+    coins.forEach(c => {
+        gX.save();
+        gX.translate(c.x,c.y); gX.rotate(c.rot);
+        const sc = 1+Math.sin(c.pulse)*0.06;
+        gX.scale(sc,sc);
+
+        if(c.type==='RAINBOW') {
+            gX.shadowColor = `hsl(${frames*4%360},100%,50%)`;
+            gX.shadowBlur = 20;
+        } else if(c.type==='GOLD') {
+            gX.shadowColor = '#FFD700'; gX.shadowBlur = 14;
+        }
+
+        gX.fillStyle = c.type==='RAINBOW'?`hsl(${frames*3%360},85%,55%)`:c.type==='GOLD'?'#FFD700':'#F7931A';
+        gX.beginPath(); gX.arc(0,0,c.r,0,Math.PI*2); gX.fill();
+        gX.strokeStyle = c.type==='RAINBOW'?'#fff':'#B45309';
+        gX.lineWidth = 2.5; gX.stroke();
+
+        gX.fillStyle = c.type==='RAINBOW'?'#fff':'#5D2E0C';
+        gX.font = `bold ${c.r}px 'Fredoka One'`;
+        gX.textAlign = 'center'; gX.textBaseline = 'middle';
+        gX.fillText('₿',0,1);
+
+        gX.fillStyle = 'rgba(255,255,255,0.3)';
+        gX.beginPath(); gX.arc(-c.r*0.3,-c.r*0.3,c.r*0.25,0,Math.PI*2); gX.fill();
+
+        gX.restore();
+    });
+
+    bears.forEach(b => drawBear(b));
+
+    drawBull(bull.x, bull.y, bull.ang, bull.wob);
+
+    particles.forEach(p => {
+        gX.globalAlpha = p.life;
+        gX.fillStyle = p.color;
+        gX.beginPath(); gX.arc(p.x,p.y,p.size,0,Math.PI*2); gX.fill();
+        gX.globalAlpha = 1;
+    });
+
+    floatTexts.forEach(t => {
+        gX.save();
+        gX.globalAlpha = t.life;
+        gX.translate(t.x,t.y); gX.scale(t.scale,t.scale);
+        gX.font = "bold 17px 'Fredoka One'";
+        gX.textAlign = 'center';
+        gX.fillStyle = t.color;
+        gX.strokeStyle = 'rgba(0,0,0,0.8)'; gX.lineWidth = 3;
+        gX.strokeText(t.text,0,0); gX.fillText(t.text,0,0);
+        gX.restore();
+    });
+
+    if(combo>1) {
+        gX.save();
+        gX.globalAlpha = 0.35+Math.sin(frames*0.1)*0.15;
+        gX.font = "bold 32px 'Fredoka One'";
+        gX.textAlign = 'center';
+        gX.fillStyle = lvl.accent;
+        gX.strokeStyle = '#000'; gX.lineWidth = 4;
+        gX.strokeText(`${combo}x COMBO!`, innerWidth/2, 85);
+        gX.fillText(`${combo}x COMBO!`, innerWidth/2, 85);
+        gX.restore();
+    }
+
+    if(bull.dashCooldown > 0) {
+        const ratio = bull.dashCooldown / 60;
+        gX.fillStyle = 'rgba(0,200,255,0.2)';
+        gX.fillRect(bull.x - 30, bull.y + 50, 60 * (1-ratio), 4);
+        gX.strokeStyle = 'rgba(0,200,255,0.5)';
+        gX.lineWidth = 1;
+        gX.strokeRect(bull.x - 30, bull.y + 50, 60, 4);
+    } else {
+        gX.fillStyle = 'rgba(0,200,255,0.6)';
+        gX.font = "10px 'Press Start 2P'";
+        gX.textAlign = 'center';
+        gX.fillText('␣ DASH READY', bull.x, bull.y + 58);
+    }
+
+    if(frames<90 && level>1) {
+        gX.save();
+        gX.globalAlpha = Math.max(0, 1-frames/90);
+        gX.font = "bold 22px 'Press Start 2P'";
+        gX.textAlign = 'center';
+        gX.fillStyle = lvl.accent;
+        gX.strokeStyle = '#000'; gX.lineWidth = 5;
+        gX.strokeText(`${lvl.year}`, innerWidth/2, innerHeight/2-20);
+        gX.fillText(`${lvl.year}`, innerWidth/2, innerHeight/2-20);
+        gX.font = "bold 14px 'Fredoka One'";
+        gX.fillStyle = '#fff';
+        gX.fillText(lvl.name, innerWidth/2, innerHeight/2+15);
+        gX.fillText(lvl.description, innerWidth/2, innerHeight/2+40);
+        gX.restore();
+    }
+
+    gX.restore();
+}
+
+// ============================================
+// BACKGROUND
+// ============================================
+function drawBg() {
+    const w = bgC.width, h = bgC.height;
+    const lvl = LEVELS[Math.min(level-1, LEVELS.length-1)] || LEVELS[0];
+
+    bgX.fillStyle = lvl.bg;
+    bgX.fillRect(0,0,w,h);
+
+    if(lvl.hasNebula) {
+        nebulaParticles.forEach(np => {
+            np.x += np.vx; np.y += np.vy;
+            if(np.x < -np.r) np.x = w+np.r;
+            if(np.x > w+np.r) np.x = -np.r;
+            if(np.y < -np.r) np.y = h+np.r;
+            if(np.y > h+np.r) np.y = -np.r;
+
+            const grad = bgX.createRadialGradient(np.x, np.y, 0, np.x, np.y, np.r);
+            grad.addColorStop(0, `hsla(${np.hue + frames*0.1}, 70%, 60%, ${np.alpha})`);
+            grad.addColorStop(1, 'transparent');
+            bgX.fillStyle = grad;
+            bgX.beginPath(); bgX.arc(np.x, np.y, np.r, 0, Math.PI*2); bgX.fill();
+        });
+    }
+
+    const starLimit = lvl.starCount;
+    for(let i=0; i<Math.min(stars.length, starLimit); i++) {
+        const s = stars[i];
+        s.twinkle += 0.02;
+        const alpha = 0.3 + Math.sin(s.twinkle)*0.3;
+        bgX.fillStyle = `rgba(255,255,255,${alpha})`;
+        bgX.beginPath(); bgX.arc(s.x, s.y, s.size, 0, Math.PI*2); bgX.fill();
+        if(Math.random() > 0.9995) {
+            bgX.strokeStyle = `rgba(255,255,255,0.6)`;
+            bgX.lineWidth = 1;
+            bgX.beginPath(); bgX.moveTo(s.x, s.y); bgX.lineTo(s.x - 30, s.y + 10); bgX.stroke();
+        }
+    }
+
+    if(lvl.hasBuildings) {
+        bgX.fillStyle = 'rgba(0,0,0,0.4)';
+        buildings.forEach(b => {
+            bgX.fillRect(b.x, h - b.h - 20, b.w, b.h);
+            if(b.windows && frames % 60 < 30) {
+                bgX.fillStyle = `rgba(${lvl.accent === '#FF00CC' ? '255,0,200' : '255,200,0'},0.15)`;
+                for(let wy = h-b.h; wy < h-30; wy += 15) {
+                    for(let wx = b.x+5; wx < b.x+b.w-5; wx += 12) {
+                        if(Math.random() > 0.6) bgX.fillRect(wx, wy, 6, 8);
+                    }
+                }
+                bgX.fillStyle = 'rgba(0,0,0,0.4)';
+            }
+        });
+    }
+
+    if(lvl.hasGridFloor) {
+        bgX.strokeStyle = lvl.grid;
+        bgX.lineWidth = 1; bgX.globalAlpha = 0.5;
+        for(let i=0; i<10; i++) {
+            const y = h - 20 - i*i*3;
+            bgX.beginPath(); bgX.moveTo(0, y); bgX.lineTo(w, y); bgX.stroke();
+        }
+        for(let i=-10; i<=10; i++) {
+            const x = w/2 + i * 60;
+            bgX.beginPath(); bgX.moveTo(w/2, h-100); bgX.lineTo(x, h-20); bgX.stroke();
+        }
+        bgX.globalAlpha = 1;
+    }
+
+    if(lvl.hasRings) {
+        bgX.save();
+        bgX.translate(w/2, h*0.3);
+        bgX.rotate(frames * 0.002);
+        bgX.strokeStyle = `rgba(255,255,255,0.06)`;
+        bgX.lineWidth = 2;
+        for(let r=80; r<300; r+=25) {
+            bgX.beginPath(); bgX.ellipse(0, 0, r, r*0.15, 0, 0, Math.PI*2); bgX.stroke();
+        }
+        bgX.restore();
+    }
+
+    bgX.strokeStyle = lvl.grid; bgX.lineWidth = 0.5;
+    for(let x=0; x<w; x+=lvl.gridSize) { bgX.beginPath(); bgX.moveTo(x,0); bgX.lineTo(x,h); bgX.stroke(); }
+    for(let y=0; y<h; y+=lvl.gridSize) { bgX.beginPath(); bgX.moveTo(0,y); bgX.lineTo(w,y); bgX.stroke(); }
+
+    const cw = w / chartData.length;
+    let prevY = h - (chartData[0]/100)*h*0.55 + h*0.12;
+    for(let i=1; i<chartData.length; i++) {
+        const val = chartData[i], prev = chartData[i-1];
+        const x = i*cw;
+        const y = h - (val/100)*h*0.55 + h*0.12;
+        const up = val >= prev;
+        bgX.strokeStyle = up ? lvl.chartUp : lvl.chartDown;
+        bgX.globalAlpha = 0.2;
+        bgX.beginPath(); bgX.moveTo((i-1)*cw, prevY); bgX.lineTo(x, y); bgX.stroke();
+        bgX.fillStyle = up ? lvl.chartUp : lvl.chartDown;
+        bgX.shadowColor = up ? lvl.glowUp : lvl.glowDown;
+        bgX.shadowBlur = 8;
+        const ch = Math.abs(y-prevY)+2, cy = Math.min(y,prevY);
+        bgX.fillRect(x-cw/2+1, cy, Math.max(2,cw-1), Math.max(2,ch));
+        bgX.shadowBlur = 0; bgX.globalAlpha = 1;
+        prevY = y;
+    }
+
+    bgX.strokeStyle = 'rgba(255,50,50,0.35)'; bgX.lineWidth = 2;
+    bgX.setLineDash([6,6]); bgX.beginPath(); bgX.moveTo(0,h-18); bgX.lineTo(w,h-18); bgX.stroke(); bgX.setLineDash([]);
+    bgX.fillStyle = 'rgba(255,50,50,0.4)'; bgX.font = '9px monospace';
+    bgX.fillText('SUPPORT LEVEL — BREAK IT AND DIE', 12, h-26);
+
+    requestAnimationFrame(drawBg);
+}
+
+// ============================================
+// PIXELATED NFT BEAR
+// ============================================
+function drawBear(b) {
+    gX.save();
+    gX.translate(b.x, b.y);
+
+    if(b.portalPhase < 1) {
+        gX.globalAlpha = b.portalPhase;
+        const portalScale = 1 + (1-b.portalPhase)*2;
+        gX.scale(portalScale, portalScale);
+        for(let i=0; i<3; i++) {
+            gX.strokeStyle = `hsla(${280 + i*20}, 80%, 60%, ${0.3 * (1-b.portalPhase)})`;
+            gX.lineWidth = 2;
+            gX.beginPath();
+            gX.arc(0, 0, 20 + i*10 + b.portalPhase*30, 0, Math.PI*2);
+            gX.stroke();
+        }
+    }
+
+    const pixelSize = 4;
+    gX.scale(pixelSize, pixelSize);
+
+    gX.fillStyle = '#5D4037';
+    gX.fillRect(-5, -2, 10, 8);
+    gX.fillRect(-4, -8, 8, 6);
+    gX.fillRect(-5, -10, 3, 3);
+    gX.fillRect(2, -10, 3, 3);
+    gX.fillStyle = '#8D6E63';
+    gX.fillRect(-2, -5, 4, 3);
+    gX.fillStyle = '#1F1F1F';
+    gX.fillRect(-1, -6, 2, 2);
+    gX.fillStyle = '#FF4444';
+    gX.fillRect(-3, -7, 2, 2);
+    gX.fillRect(1, -7, 2, 2);
+    gX.fillStyle = '#FFFFFF';
+    gX.fillRect(-2, -7, 1, 1);
+    gX.fillRect(2, -7, 1, 1);
+    gX.fillStyle = '#5D4037';
+    gX.fillRect(-4, 6, 3, 4);
+    gX.fillRect(1, 6, 3, 4);
+    gX.fillStyle = '#4E342E';
+    const armWave = Math.sin(b.wob) * 2;
+    gX.fillRect(-7 + armWave, -1, 3, 5);
+    gX.fillRect(4 - armWave, -1, 3, 5);
+    gX.fillStyle = '#FF0000';
+    gX.fillRect(-3, 2, 6, 2);
+    gX.fillStyle = '#FFFFFF';
+    gX.fillRect(-2, 2.5, 1, 1); gX.fillRect(0, 2.5, 1, 1); gX.fillRect(2, 2.5, 1, 1);
+
+    if(Math.random() > 0.95) {
+        gX.fillStyle = 'rgba(255,0,255,0.3)';
+        gX.fillRect(-6 + Math.random()*4, -10 + Math.random()*8, 3, 2);
+    }
+
+    gX.restore();
+}
+
+// ============================================
+// PIXELATED NFT BULL — swimming breaststroke legs
+// ============================================
+function drawBull(x, y, ang, wob) {
+    gX.save();
+    gX.translate(x, y);
+
+    const fa = Math.atan2(Math.sin(ang), Math.cos(ang));
+    gX.rotate(fa + Math.PI/2);
+
+    const ps = 5;
+    gX.scale(ps, ps);
+    gX.imageSmoothingEnabled = false;
+
+    const kickCycle = Math.sin(wob * 2) * 3;
+
+    gX.fillStyle = '#B45309';
+    const leftLegX = -4 + kickCycle;
+    const leftLegY = 5 + Math.abs(kickCycle) * 0.5;
+    gX.fillRect(leftLegX - 1, leftLegY, 3, 5);
+    gX.fillRect(leftLegX - 2 + kickCycle*0.5, leftLegY + 5, 4, 2);
+
+    const rightLegX = 2 - kickCycle;
+    const rightLegY = 5 + Math.abs(kickCycle) * 0.5;
+    gX.fillRect(rightLegX - 1, rightLegY, 3, 5);
+    gX.fillRect(rightLegX - 2 - kickCycle*0.5, rightLegY + 5, 4, 2);
+
+    gX.fillStyle = '#F7931A';
+    gX.fillRect(-5, -3, 10, 9);
+    gX.fillStyle = '#E8820C';
+    gX.fillRect(-5, 3, 10, 3);
+
+    const armCycle = Math.sin(wob * 2 + Math.PI) * 2;
+    gX.fillStyle = '#D97706';
+    gX.fillRect(-7, -1 + armCycle, 3, 5);
+    gX.fillRect(4, -1 - armCycle, 3, 5);
+
+    gX.fillStyle = '#F7931A';
+    gX.fillRect(-4, -9, 8, 7);
+    gX.fillStyle = '#FBBF24';
+    gX.fillRect(-2, -5, 4, 3);
+    gX.fillStyle = '#5D2E0C';
+    gX.fillRect(-1, -5, 1, 1);
+    gX.fillRect(0, -5, 1, 1);
+
+    gX.fillStyle = '#FEF3C7';
+    gX.fillRect(-4, -11, 2, 3);
+    gX.fillRect(2, -11, 2, 3);
+
+    gX.fillStyle = '#D97706';
+    gX.fillRect(-6, -8, 2, 3);
+    gX.fillRect(4, -8, 2, 3);
+
+    gX.fillStyle = '#000';
+    gX.fillRect(-3, -8, 2, 2);
+    gX.fillRect(1, -8, 2, 2);
+    gX.fillStyle = '#FFF';
+    gX.fillRect(-2, -8, 1, 1);
+    gX.fillRect(2, -8, 1, 1);
+
+    gX.fillStyle = '#5D2E0C';
+    gX.fillRect(-1, 0, 2, 4);
+    gX.fillRect(-2, 0, 4, 1);
+    gX.fillRect(-2, 3, 4, 1);
+    gX.fillRect(-3, -1, 1, 1);
+    gX.fillRect(2, -1, 1, 1);
+
+    if(combo > 5) {
+        gX.fillStyle = `rgba(255,50,50,${0.5 + Math.sin(frames*0.3)*0.5})`;
+        gX.fillRect(-3, -8, 2, 2);
+        gX.fillRect(1, -8, 2, 2);
+        gX.fillStyle = 'rgba(255,50,50,0.3)';
+        gX.fillRect(-3, -20, 2, 12);
+        gX.fillRect(1, -20, 2, 12);
+    }
+
+    gX.restore();
+}
+
+// ============================================
+// MAIN LOOP
+// ============================================
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+// ============================================
+// BOOT
+// ============================================
+init();
+</script>
+</body>
+</html>
